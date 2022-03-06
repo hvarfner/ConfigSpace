@@ -1311,11 +1311,15 @@ cdef class BetaFloatHyperparameter(UniformFloatHyperparameter):
         if default_value is None:
             if (self.alpha > 1) or (self.beta > 1):
                 normalized_mode = (self.alpha - 1) / (self.alpha + self.beta - 2)
-                return self._transform_scalar(normalized_mode)
             else: 
                 # If both alpha and beta are 1, we have a uniform distribution.
-                return self._transform_scalar(0.5)
-
+                normalized_mode = 0.5
+            
+            ub = self._inverse_transform(self.upper)
+            lb = self._inverse_transform(self.lower)
+            scaled_mode = normalized_mode * (ub - lb) + lb
+            return self._transform_scalar(scaled_mode)
+        
         elif self.is_legal(default_value):
             return default_value
         else:
@@ -1368,9 +1372,12 @@ cdef class BetaFloatHyperparameter(UniformFloatHyperparameter):
         np.ndarray(N, )
             Probability density values of the input vector
         """
+        ub = self._inverse_transform(self.upper)
+        lb = self._inverse_transform(self.lower)
         alpha = self.alpha
         beta = self.beta
-        return spbeta(alpha, beta).pdf(vector) / (self._upper - self._lower)
+        return spbeta(alpha, beta, loc=lb, scale=ub-lb).pdf(vector) \
+        * (ub-lb) / (self._upper - self._lower)
 
     def get_max_density(self) -> float:
         if (self.alpha > 1) or (self.beta > 1):
@@ -1381,10 +1388,14 @@ cdef class BetaFloatHyperparameter(UniformFloatHyperparameter):
             normalized_mode = 1
         else: 
             normalized_mode = 0.5
-        
+
+        ub = self._inverse_transform(self.upper)
+        lb = self._inverse_transform(self.lower)
+        scaled_mode = normalized_mode * (ub - lb) + lb
+
         # Since _pdf takes only a numpy array, we have to create the array, 
         # and retrieve the element in the first (and only) spot in the array
-        return self._pdf(np.array([normalized_mode]))[0]
+        return self._pdf(np.array([scaled_mode]))[0]
         
 cdef class UniformIntegerHyperparameter(IntegerHyperparameter):
     def __init__(self, name: str, lower: int, upper: int, default_value: Union[int, None] = None,
@@ -2045,11 +2056,15 @@ cdef class BetaIntegerHyperparameter(UniformIntegerHyperparameter):
         if (alpha < 1) or (beta < 1):
             raise ValueError("Please provide values of alpha and beta larger than or equal to\
              1 so that the probability density is finite.")
+        if self.q is None:
+            q = 1
+        else:
+            q = self.q
         self.bfhp = BetaFloatHyperparameter(self.name,
                                               self.alpha,
                                               self.beta,
                                               log=self.log,
-                                              q=self.q,
+                                              q=q,
                                               lower=self.lower,
                                               upper=self.upper,
                                               default_value=self.default_value)

@@ -715,7 +715,7 @@ class TestHyperparameters(unittest.TestCase):
 
         self.assertEqual(f4, f4_)
         self.assertEqual(
-            "param, Type: BetaFloat, Alpha: 2.0 Beta: 2.0, Range: [1.0, 1000.0], Default: 22.0, "
+            "param, Type: BetaFloat, Alpha: 2.0 Beta: 2.0, Range: [1.0, 1000.0], Default: 32.0, "
             "on log-scale, Q: 1.0", str(f4))
 
         # test that meta-data is stored correctly
@@ -809,6 +809,10 @@ class TestHyperparameters(unittest.TestCase):
         f_quant = BetaFloatHyperparameter(
             "param", lower=-2.0, upper=2.0, alpha=4.7, beta=2.12, q=1)
         self.assertAlmostEqual(f_quant.default_value, 1.0)
+
+        f_log_quant = BetaFloatHyperparameter(
+            "param", lower=1, upper=100000, alpha=2, beta=2, q=1, log=True)
+        self.assertAlmostEqual(f_log_quant.default_value, 316)
 
         # since it's quantized, it gets distributed evenly among the search space
         # as such, the possible normalized defaults are 0.1, 0.3, 0.5, 0.7, 0.9
@@ -1163,7 +1167,7 @@ class TestHyperparameters(unittest.TestCase):
         for res, log_res, exp_res, exp_log_res in zip(array_results, array_results_log,
                                                       expected_results, expected_results_log):
             self.assertAlmostEqual(res, exp_res, places=5)
-            self.assertAlmostEqual(log_res, exp_res, places=5)
+            self.assertAlmostEqual(log_res, exp_log_res, places=5)
 
         # pdf must take a numpy array
         with self.assertRaises(TypeError):
@@ -1599,11 +1603,12 @@ class TestHyperparameters(unittest.TestCase):
         wrong_shape_2 = np.array([3, 5, 7]).reshape(1, -1)
         wrong_shape_3 = np.array([3, 5, 7]).reshape(-1, 1)
 
-        self.assertAlmostEqual(c1.pdf(point_1)[0], 0.07636363636363634)
-        self.assertAlmostEqual(c2.pdf(point_1_log)[0], 0.0008724511426701984)
-        self.assertAlmostEqual(c1.pdf(point_2)[0], 0.09818181818181816)
-        self.assertAlmostEqual(c2.pdf(point_2_log)[0], 0.0008683622684160343)
-        self.assertAlmostEqual(c3.pdf(point_3)[0], 0.9979110652388783)
+        # The quantization constant (0.4999) dictates the accuracy of the integer beta pdf
+        self.assertAlmostEqual(c1.pdf(point_1)[0], 0.07636363636363634, places=3)
+        self.assertAlmostEqual(c2.pdf(point_1_log)[0], 0.0008724511426701984, places=3)
+        self.assertAlmostEqual(c1.pdf(point_2)[0], 0.09818181818181816, places=3)
+        self.assertAlmostEqual(c2.pdf(point_2_log)[0], 0.0008683622684160343, places=3)
+        self.assertAlmostEqual(c3.pdf(point_3)[0], 0.9979110652388783, places=3)
 
         self.assertEqual(c1.pdf(point_outside_range_1)[0], 0.0)
         self.assertEqual(c1.pdf(point_outside_range_2)[0], 0.0)
@@ -1622,8 +1627,8 @@ class TestHyperparameters(unittest.TestCase):
         self.assertEqual(array_results_log.shape, expected_results.shape)
         for res, log_res, exp_res, exp_log_res in zip(array_results, array_results_log,
                                                       expected_results, expected_results_log):
-            self.assertAlmostEqual(res, exp_res)
-            self.assertAlmostEqual(log_res, exp_log_res)
+            self.assertAlmostEqual(res, exp_res, places=3)
+            self.assertAlmostEqual(log_res, exp_log_res, places=3)
 
         # pdf must take a numpy array
         with self.assertRaises(TypeError):
@@ -1641,36 +1646,42 @@ class TestHyperparameters(unittest.TestCase):
     def test_betaint__pdf(self):
         c1 = BetaIntegerHyperparameter("param", alpha=3, beta=2, lower=0, upper=10)
         c2 = BetaIntegerHyperparameter("logparam", alpha=3, beta=2, 
-                                       lower=1, upper=np.exp(10), log=True)
+                                       lower=1, upper=round(np.exp(10)), log=True)
         c3 = BetaIntegerHyperparameter("param", alpha=1.1, beta=10, lower=0, upper=3)
 
-        point_1 = np.array([0.3])
-        point_2 = np.array([0.57])
-        point_3 = np.array([0.1])
-        array_1 = np.array([0.3, 0.57, 0.11])
-        point_outside_range_1 = np.array([-0.01])
-        point_outside_range_2 = np.array([1.01])
+        # since the logged and unlogged parameters will have different active domains
+        # in the unit range, they will not evaluate identically under _pdf
+        point_1 = np.array([0.249995])
+        point_1_log = np.array([0.345363])
+        point_2 = np.array([0.850001])
+        point_2_log = np.array([0.906480])
+        array_1 = np.array([0.249995, 0.850001, 0.045])
+        array_1_log = np.array([0.345363, 0.906480, 0.065])
+        point_outside_range_1 = np.array([0.045])
+        point_outside_range_1_log = np.array([0.065])
+        point_outside_range_2 = np.array([0.96])
+        
         accepted_shape_1 = np.array([[3]])
         accepted_shape_2 = np.array([3, 5, 7]).reshape(1, -1)
         accepted_shape_3 = np.array([3, 5, 7]).reshape(-1, 1)
 
-        self.assertAlmostEqual(c1._pdf(point_1)[0], 0.07636363636363634)
-        self.assertAlmostEqual(c2._pdf(point_1)[0], 0.07636363636363634)
-        self.assertAlmostEqual(c1._pdf(point_2)[0], 0.16934181818181823)
-        self.assertAlmostEqual(c2._pdf(point_2)[0], 0.16934181818181823)
-        self.assertAlmostEqual(c3._pdf(point_3)[0], 0.9979110652388783)
-
+        self.assertAlmostEqual(c1._pdf(point_1)[0], 0.0475566)
+        self.assertAlmostEqual(c2._pdf(point_1_log)[0], 0.00004333811)
+        self.assertAlmostEqual(c1._pdf(point_2)[0], 0.1091810)
+        self.assertAlmostEqual(c2._pdf(point_2_log)[0], 0.00005571951)
+        
+        # test points that are actually outside of the _pdf range due to the skewing
+        # of the unit hypercube space
         self.assertEqual(c1._pdf(point_outside_range_1)[0], 0.0)
         self.assertEqual(c1._pdf(point_outside_range_2)[0], 0.0)
         self.assertEqual(c2._pdf(point_outside_range_1)[0], 0.0)
-        self.assertEqual(c2._pdf(point_outside_range_2)[0], 0.0)
-
+        
         array_results = c1._pdf(array_1)
-        array_results_log = c2._pdf(array_1)
-        expected_results = np.array([0.07636363636363634, 0.16934181818181823, 0])
-        expected_results_log = np.array([0.07636363636363634, 0.16934181818181823, 0])
+        array_results_log = c2._pdf(array_1_log)
+        expected_results = np.array([0.0475566, 0.1091810, 0])
+        expected_results_log = np.array([0.00004333811, 0.00005571951, 0])
         self.assertEqual(array_results.shape, expected_results.shape)
-        self.assertEqual(array_results_log.shape, expected_results.shape)
+        self.assertEqual(array_results_log.shape, expected_results_log.shape)
         for res, log_res, exp_res, exp_log_res in zip(array_results, array_results_log,
                                                       expected_results, expected_results_log):
             self.assertAlmostEqual(res, exp_res)
