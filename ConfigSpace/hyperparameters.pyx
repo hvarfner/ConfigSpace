@@ -465,7 +465,7 @@ cdef class FloatHyperparameter(NumericalHyperparameter):
 
     cpdef double _transform_scalar(self, double scalar):
         raise NotImplementedError()
-
+pdf
     cpdef np.ndarray _transform_vector(self, np.ndarray vector):
         raise NotImplementedError()
 

@@ -1645,9 +1645,8 @@ class TestHyperparameters(unittest.TestCase):
 
     def test_betaint__pdf(self):
         c1 = BetaIntegerHyperparameter("param", alpha=3, beta=2, lower=0, upper=10)
-        c2 = BetaIntegerHyperparameter("logparam", alpha=3, beta=2, 
+        c2 = BetaIntegerHyperparameter("logparam", alpha=3, beta=2,
                                        lower=1, upper=round(np.exp(10)), log=True)
-        c3 = BetaIntegerHyperparameter("param", alpha=1.1, beta=10, lower=0, upper=3)
 
         # since the logged and unlogged parameters will have different active domains
         # in the unit range, they will not evaluate identically under _pdf
@@ -1658,9 +1657,9 @@ class TestHyperparameters(unittest.TestCase):
         array_1 = np.array([0.249995, 0.850001, 0.045])
         array_1_log = np.array([0.345363, 0.906480, 0.065])
         point_outside_range_1 = np.array([0.045])
-        point_outside_range_1_log = np.array([0.065])
+        point_outside_range_1_log = np.array([0.06])
         point_outside_range_2 = np.array([0.96])
-        
+
         accepted_shape_1 = np.array([[3]])
         accepted_shape_2 = np.array([3, 5, 7]).reshape(1, -1)
         accepted_shape_3 = np.array([3, 5, 7]).reshape(-1, 1)
@@ -1669,13 +1668,13 @@ class TestHyperparameters(unittest.TestCase):
         self.assertAlmostEqual(c2._pdf(point_1_log)[0], 0.00004333811)
         self.assertAlmostEqual(c1._pdf(point_2)[0], 0.1091810)
         self.assertAlmostEqual(c2._pdf(point_2_log)[0], 0.00005571951)
-        
+
         # test points that are actually outside of the _pdf range due to the skewing
         # of the unit hypercube space
         self.assertEqual(c1._pdf(point_outside_range_1)[0], 0.0)
         self.assertEqual(c1._pdf(point_outside_range_2)[0], 0.0)
-        self.assertEqual(c2._pdf(point_outside_range_1)[0], 0.0)
-        
+        self.assertEqual(c2._pdf(point_outside_range_1_log)[0], 0.0)
+
         array_results = c1._pdf(array_1)
         array_results_log = c2._pdf(array_1_log)
         expected_results = np.array([0.0475566, 0.1091810, 0])
